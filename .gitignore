@@ -1,0 +1,20 @@
+# Build artifacts
+bin/
+dist/
+xdl
+*.exe
+*.test
+
+# Runtime data
+logs/
+debug/
+xDownloads/
+xD/
+*.log
+
+# Debug dumps
+config/debug/
+
+# Config secrets
+config/cookies.json
+.env
