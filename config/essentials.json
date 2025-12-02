@@ -19,9 +19,9 @@
   "auth": {
     "bearer": "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA",
     "cookies": {
-      "guest_id": "v1%3A175864257880961003",
-      "auth_token": "bc36356548194f33e0c5fddba0740df072478438",
-      "ct0": "c185d5235475fdf24bad3a5a7d2e5aec2c109eed43c1535a7aee34000e65540705bc9ecf171ab5122360724e536910a3aaafd8a28d12117465f3d18e0ae1443325fa6dc7c065c7459afe80a76a7f86ec"
+      "guest_id": "",
+      "auth_token": "",
+      "ct0": ""
     }
   },
   "headers": {
