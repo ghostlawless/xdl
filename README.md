@@ -38,8 +38,14 @@ config/cookies.json
 Requires **Go 1.21+**
 
 ```bash
-git clone https://gitlab.com/medusax/xdl
+#Clone **one** of the repositories:
+git clone https://github.com/ghostlawless/xdl.git # For github (Primary)
+git clone https://gitlab.com/medusax/xdl # For gitlab (Mirror)
+
+#Enter the project directory:
 cd xdl
+
+#Build
 go build -o xdl ./cmd/xdl       # Linux / macOS
 go build -o xdl.exe ./cmd/xdl   # Windows
 ```
