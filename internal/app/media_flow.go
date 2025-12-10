@@ -208,7 +208,7 @@ func scanAndDownloadUserMedia(
 	vb := rctx.Mode == ModeVerbose && len(rctx.Users) == 1
 
 	handler := func(page int, cursor string, medias []scraper.Media) error {
-		_ = cursor // currently unused, kept for future flexibility
+		_ = cursor
 
 		if globalControl.ShouldQuit() {
 			return fmt.Errorf("aborted by user")
@@ -218,15 +218,8 @@ func scanAndDownloadUserMedia(
 			return nil
 		}
 
-		// Aggregate scan result
 		accumulator.Add(medias)
 
-		// Scan-only mode, no downloads
-		if rctx.NoDownload {
-			return nil
-		}
-
-		// Enrich media with tweet detail before download
 		enriched := scraper.EnrichMediaWithTweetDetail(apiClient, conf, username, medias, lim, vb)
 		if len(enriched) == 0 {
 			return nil

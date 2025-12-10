@@ -13,15 +13,12 @@ import (
 )
 
 func newSpinnerForUser(rctx RunContext, username string) *spinner {
-	// Quiet mode must not show spinner or any extra UI.
 	if rctx.Mode == ModeQuiet {
 		return nil
 	}
 
 	label := fmt.Sprintf("scanning media for target @%s", username)
 
-	// In verbose mode, print a friendly line before starting the spinner.
-	// In debug mode, rely on the spinner output itself plus log entries.
 	if rctx.Mode == ModeVerbose {
 		utils.PrintInfo("%s", label)
 	}

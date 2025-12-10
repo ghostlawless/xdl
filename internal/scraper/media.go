@@ -19,7 +19,7 @@ import (
 
 type Media struct {
 	URL     string `json:"url"`
-	Type    string `json:"type"`
+	Type    string `json:"type"` // "image" or "video"
 	TweetID string `json:"tweet_id,omitempty"`
 }
 
@@ -41,6 +41,47 @@ func WalkUserMediaPages(
 		return errors.New("empty userID")
 	}
 
+	// Local helper: tries to find "media_count" anywhere in the JSON.
+	extractCount := func(b []byte) int {
+		var root any
+		if err := json.Unmarshal(b, &root); err != nil {
+			return -1
+		}
+
+		var walk func(v any) int
+		walk = func(v any) int {
+			switch t := v.(type) {
+			case map[string]any:
+				if mc, ok := t["media_count"]; ok {
+					switch vv := mc.(type) {
+					case float64:
+						if vv >= 0 {
+							return int(vv)
+						}
+					case int:
+						if vv >= 0 {
+							return vv
+						}
+					}
+				}
+				for _, v2 := range t {
+					if got := walk(v2); got >= 0 {
+						return got
+					}
+				}
+			case []any:
+				for _, it := range t {
+					if got := walk(it); got >= 0 {
+						return got
+					}
+				}
+			}
+			return -1
+		}
+
+		return walk(root)
+	}
+
 	ep, err := cf.GraphQLURL("user_media")
 	if err != nil {
 		return err
@@ -54,18 +95,17 @@ func WalkUserMediaPages(
 	seenCursors := make(map[string]struct{}, 256)
 	seenCursors[""] = struct{}{}
 
+	// Global dedupe of media URLs across all pages.
 	seenMedia := make(map[string]struct{}, 1024)
 
 	ic := 0
 	vc := 0
 	ri := 0
-	frames := []rune{'|', '/', '-', '\\'}
-	_ = frames
-
 	ref := strings.TrimRight(cf.X.Network, "/") + "/i/user/" + uid + "/media"
 
 	end := ""
 
+	// Total media reported by the server (media_count), when available.
 	totalExpected := -1
 	printedScan := false
 
@@ -135,8 +175,9 @@ func WalkUserMediaPages(
 			log.LogInfo("media", fmt.Sprintf("saved UserMedia page %d to %s", pg, p))
 		}
 
+		// Try to read media_count once, from the first successful page.
 		if totalExpected < 0 {
-			if cnt := extractMediaCount(b); cnt > 0 {
+			if cnt := extractCount(b); cnt > 0 {
 				totalExpected = cnt
 				if cf.Runtime.DebugEnabled {
 					log.LogInfo("media", fmt.Sprintf("server-reported media_count=%d", totalExpected))
@@ -158,6 +199,7 @@ func WalkUserMediaPages(
 			break
 		}
 
+		// Keep only new media for this page (global dedupe by URL).
 		pageBatch := make([]Media, 0, len(pms))
 		for _, m := range pms {
 			if m.URL == "" {
@@ -181,6 +223,7 @@ func WalkUserMediaPages(
 			log.LogInfo("media", fmt.Sprintf("page %d: +%d (total %d)", pg, delta, total))
 		}
 
+		// Verbose scan progress (single user): one line with bar + percent when possible.
 		if vb {
 			line := ""
 			if totalExpected > 0 {
@@ -258,6 +301,7 @@ func WalkUserMediaPages(
 	}
 
 	if vb && printedScan {
+		// Finish the scan line before download progress prints more things.
 		fmt.Print("\n")
 	}
 
@@ -269,81 +313,6 @@ func WalkUserMediaPages(
 	}
 
 	return nil
-}
-
-func GetMediaLinksForUser(cl *http.Client, cf *config.EssentialsConfig, uid string, sn string, vb bool, lim *xruntime.Limiter) ([]Media, error) {
-	if cl == nil || cf == nil {
-		return nil, errors.New("nil client or config")
-	}
-	if uid == "" {
-		return nil, errors.New("empty userID")
-	}
-
-	all := make([]Media, 0, 512)
-
-	handler := func(page int, cursor string, medias []Media) error {
-		_ = page
-		_ = cursor
-		all = append(all, medias...)
-		return nil
-	}
-
-	if err := WalkUserMediaPages(cl, cf, uid, sn, vb, lim, handler); err != nil {
-		return nil, err
-	}
-
-	if len(all) == 0 {
-		log.LogInfo("media", "Total unique media found: 0")
-		return all, nil
-	}
-
-	sort.Slice(all, func(i, j int) bool {
-		return all[i].URL < all[j].URL
-	})
-
-	log.LogInfo("media", fmt.Sprintf("Total unique media found: %d", len(all)))
-
-	return all, nil
-}
-
-func extractMediaCount(b []byte) int {
-	var root any
-	if err := json.Unmarshal(b, &root); err != nil {
-		return -1
-	}
-
-	var walk func(v any) int
-	walk = func(v any) int {
-		switch t := v.(type) {
-		case map[string]any:
-			if mc, ok := t["media_count"]; ok {
-				switch vv := mc.(type) {
-				case float64:
-					if vv >= 0 {
-						return int(vv)
-					}
-				case int:
-					if vv >= 0 {
-						return vv
-					}
-				}
-			}
-			for _, v2 := range t {
-				if got := walk(v2); got >= 0 {
-					return got
-				}
-			}
-		case []any:
-			for _, it := range t {
-				if got := walk(it); got >= 0 {
-					return got
-				}
-			}
-		}
-		return -1
-	}
-
-	return walk(root)
 }
 
 func buildScanProgressBar(width int, fraction float64) string {
@@ -374,4 +343,37 @@ func buildScanProgressBar(width int, fraction float64) string {
 		}
 	}
 	return string(b)
+}
+
+func GetMediaLinksForUser(cl *http.Client, cf *config.EssentialsConfig, uid string, sn string, vb bool, lim *xruntime.Limiter) ([]Media, error) {
+	if cl == nil || cf == nil {
+		return nil, errors.New("nil client or config")
+	}
+	if uid == "" {
+		return nil, errors.New("empty userID")
+	}
+
+	all := make([]Media, 0, 512)
+
+	handler := func(page int, cursor string, medias []Media) error {
+		all = append(all, medias...)
+		return nil
+	}
+
+	if err := WalkUserMediaPages(cl, cf, uid, sn, vb, lim, handler); err != nil {
+		return nil, err
+	}
+
+	if len(all) == 0 {
+		log.LogInfo("media", "Total unique media found: 0")
+		return all, nil
+	}
+
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].URL < all[j].URL
+	})
+
+	log.LogInfo("media", fmt.Sprintf("Total unique media found: %d", len(all)))
+
+	return all, nil
 }

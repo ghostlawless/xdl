@@ -155,7 +155,6 @@ func GetHighQualityMediaForTweet(
 	return extractBestMediaFromTweet(tweet), nil
 }
 
-// firstTweetResult walks the instructions and returns the first Tweet result found.
 func firstTweetResult(td *tweetDetailResponse) *tweetResult {
 	if td == nil {
 		return nil
@@ -175,8 +174,6 @@ func firstTweetResult(td *tweetDetailResponse) *tweetResult {
 	return nil
 }
 
-// extractBestMediaFromTweet converts legacy media into the Media type
-// selecting the best quality photo/video when possible.
 func extractBestMediaFromTweet(tr *tweetResult) []Media {
 	if tr == nil {
 		return nil
@@ -215,20 +212,17 @@ func extractBestMediaFromTweet(tr *tweetResult) []Media {
 					Type: "video",
 				})
 			default:
-				// Ignore unknown types.
 				continue
 			}
 		}
 	}
 
-	// extended_entities usually has the richest data.
 	merge(tr.Legacy.ExtendedEntities.Media)
 	merge(tr.Legacy.Entities.Media)
 
 	return out
 }
 
-// upgradePhotoURL tries to force the "orig" size for photos when possible.
 func upgradePhotoURL(raw string) string {
 	if raw == "" {
 		return ""
@@ -246,8 +240,6 @@ func upgradePhotoURL(raw string) string {
 	return raw
 }
 
-// bestVideoVariantURL selects the variant with the highest bitrate
-// among those that look like actual video streams.
 func bestVideoVariantURL(vs []struct {
 	URL         string `json:"url"`
 	Bitrate     *int   `json:"bitrate,omitempty"`
