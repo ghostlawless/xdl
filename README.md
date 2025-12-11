@@ -1,16 +1,16 @@
 # xdl – X (Twitter) Media Downloader & Scraper (CLI)  
-Keywords: twitter media downloader, x scraper, twitter image downloader, twitter video downloader, cli, golang.  
 
-`xdl` is a simple, fast, **local** tool that downloads **all images and videos** from any public X (Twitter) profile. Everything runs directly on your machine.
+`xdl` is a simple, fast, **local** tool that downloads **images and videos** from any public X (Twitter) profile. Everything runs directly on your machine.
 
 ---
 
 ## ⭐ Key Features
-- Download **all media** (images + videos) from public profiles  
+
+- Download **media** (images + videos) from public profiles  
 - Works with **the same endpoints used by the X web client**  
 - Also works on private profiles **you follow**  
 - 100% **local**  
-- Cross‑platform: Windows, Linux, macOS  
+- Cross-platform: Windows, Linux, macOS  
 - Fast CLI workflow with minimal configuration
 
 ---
@@ -25,7 +25,7 @@ Use the **Cookie-Editor** browser extension while logged into `https://x.com`.
 2. Click **Export → Export as JSON**  
 3. Save the result to:
 
-```
+```text
 config/cookies.json
 ```
 
@@ -33,39 +33,27 @@ config/cookies.json
 
 ## Installation
 
-Requires **Go 1.21+**
+Requires **Go 1.21+**
 
 ```bash
-<<<<<<< HEAD
-# Clone **one** of the repositories:
-git clone https://github.com/ghostlawless/xdl.git  # For GitHub (Primary)
+# Clone one of the repositories:
+git clone https://github.com/ghostlawless/xdl.git  # GitHub (primary)
 # or
-git clone https://gitlab.com/medusax/xdl               # For GitLab (Mirror)
+git clone https://gitlab.com/medusax/xdl           # GitLab (mirror)
 
 # Enter the project directory:
 cd xdl
 
 # Build
-go build -o xdl ./cmd/xdl       # Linux / macOS  
-=======
-#Clone **one** of the repositories:
-git clone https://github.com/ghostlawless/xdl.git # For github (Primary)
-git clone https://gitlab.com/medusax/xdl # For gitlab (Mirror)
-
-#Enter the project directory:
-cd xdl
-
-#Build
-go build -o xdl ./cmd/xdl       # Linux / macOS
->>>>>>> 68bee1da7bb39ec1720c238e1dfc702818089dd9
-go build -o xdl.exe ./cmd/xdl   # Windows
+go build ./cmd/xdl       # Linux / macOS
+go build ./cmd/xdl   # Windows
 ```
 
 ---
 
 ## Usage
 
-```bash
+```bash or powershell (using .exe)
 xdl USERNAME
 ```
 
@@ -73,27 +61,28 @@ Example:
 
 ```bash
 xdl lawlessmedusax
+xdl.exe google
 ```
 
 ---
 
 ## Output Structure
 
-```
-exports/
-  USERNAME/
-    images/
-    videos/
-logs/
-debug/
-debug_raw/
+```text
+debug
+logs
+  /run_id
+*xDownloads*
+  /username_run
+    /images
+    /videos
 ```
 
 ---
 
 ## Project Structure
 
-```
+```text
 cmd/xdl          → CLI entrypoint  
 config/          → essentials  
 internal/  
@@ -132,7 +121,7 @@ You are responsible for complying with X’s Terms of Service and local laws.
 X applies internal timeline limits — both in the UI and in the underlying GraphQL endpoints.  
 This means that, for many profiles, **only a portion of the full historical media** is exposed through the official web client. After a certain depth, the backend simply **stops returning new pages**, even if the profile contains older posts.
 
-** xdl now always runs in HQ (high quality) mode, prioritizing the best available media variants over raw speed. As a result, downloads may feel slower, since the tool performs extra checks and uses more cautious, human-like request pacing and batching to stay friendly to the underlying platform.
+**Note on HQ mode:** `xdl` now always runs in HQ (high quality) mode, prioritizing the best available media variants over raw speed. As a result, downloads may feel slower, since the tool performs extra checks and uses more cautious, human-like request pacing and batching to stay friendly to the underlying platform.
 
 `xdl` mirrors this exact behavior:
 
@@ -154,4 +143,4 @@ Fork, study, modify, contribute.
 
 ---
 
-### xdl — practical, searchable, local-first media downloader.
+### xdl — practical, searchable, local-first media downloader
