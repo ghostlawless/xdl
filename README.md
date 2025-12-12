@@ -42,8 +42,8 @@ git clone https://gitlab.com/medusax/xdl           # GitLab (mirror)
 cd xdl
 
 # Build
-go build -o xdl ./cmd/xdl       # Linux / macOS
-go build -o xdl.exe ./cmd/xdl   # Windows
+go build ./cmd/xdl       # Linux / macOS
+go build ./cmd/xdl   # Windows
 ```
 
 ### 3. Export your cookies
@@ -65,7 +65,8 @@ The file is read locally by `xdl` and is not sent anywhere else.
 ### 4. Run
 
 ```bash
-xdl USERNAME
+./xdl USERNAME
+.\xdl.exe USERNAME
 ```
 
 Example:
