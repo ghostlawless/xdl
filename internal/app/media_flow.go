@@ -45,6 +45,7 @@ func (a *scanAccumulator) Add(medias []scraper.Media) {
 	}
 
 	a.media = append(a.media, medias...)
+
 }
 
 func (a *scanAccumulator) Result() scanResult {
@@ -71,25 +72,25 @@ type downloadStats struct {
 }
 
 func newPageProgressCallback(
-	rctx RunContext,
-	username string,
-	page int,
-	totalItems int,
+	r0 RunContext,
+	u0 string,
+	p0 int,
+	n0 int,
 ) func(downloader.ProgressEvent) {
-	if totalItems <= 0 {
+	if n0 <= 0 {
 		return nil
 	}
 
-	type counters struct {
-		ok     int
-		skip   int
-		fail   int
-		bytes  int64
-		events int
+	type x1 struct {
+		a int
+		b int
+		c int
+		d int64
+		e int
 	}
-	c := &counters{}
+	x0 := &x1{}
 
-	switch rctx.Mode {
+	switch r0.Mode {
 	case ModeVerbose:
 		return func(ev downloader.ProgressEvent) {
 			if globalControl.ShouldQuit() {
@@ -98,41 +99,42 @@ func newPageProgressCallback(
 
 			switch ev.Kind {
 			case downloader.ProgressKindDownloaded:
-				c.ok++
-				c.bytes += ev.Size
+				x0.a++
+				x0.d += ev.Size
 			case downloader.ProgressKindSkipped:
-				c.skip++
+				x0.b++
 			case downloader.ProgressKindFailed:
-				c.fail++
+				x0.c++
 			}
 
-			done := c.ok + c.skip + c.fail
-			if done <= 0 {
+			k0 := x0.a + x0.b + x0.c
+			if k0 <= 0 {
 				return
 			}
 
-			f := float64(done) / float64(totalItems)
-			if f < 0 {
-				f = 0
+			f0 := float64(k0) / float64(n0)
+			if f0 < 0 {
+				f0 = 0
 			}
-			if f > 1 {
-				f = 1
+			if f0 > 1 {
+				f0 = 1
 			}
-			pct := f * 100.0
-			bar := buildProgressBar(30, f)
+
+			pct := f0 * 100.0
+			bar := buildProgressBar(30, f0)
 
 			sfx := ""
 			if globalControl.ShouldPause() {
-				sfx = " [paused]"
+				sfx = " (paused)"
 			}
 
 			termMu.Lock()
 			defer termMu.Unlock()
 
 			fmt.Printf(
-				"\rxdl> [@%s]%s [page:%d] [%s] %3.0f%% %d/%d (ok:%d skip:%d fail:%d)",
-				username, sfx, page, bar, pct, done, totalItems,
-				c.ok, c.skip, c.fail,
+				"\rxdl @%s%s  page %d  [%s] %3.0f%%  %d/%d  (ok:%d skip:%d fail:%d)",
+				u0, sfx, p0, bar, pct, k0, n0,
+				x0.a, x0.b, x0.c,
 			)
 		}
 
@@ -140,50 +142,50 @@ func newPageProgressCallback(
 		return func(ev downloader.ProgressEvent) {
 			switch ev.Kind {
 			case downloader.ProgressKindDownloaded:
-				c.ok++
-				c.bytes += ev.Size
+				x0.a++
+				x0.d += ev.Size
 			case downloader.ProgressKindSkipped:
-				c.skip++
+				x0.b++
 			case downloader.ProgressKindFailed:
-				c.fail++
+				x0.c++
 			}
 
-			done := c.ok + c.skip + c.fail
-			if done <= 0 {
+			k0 := x0.a + x0.b + x0.c
+			if k0 <= 0 {
 				return
 			}
 
-			c.events++
-			logNow := false
-			if totalItems <= 50 {
-				logNow = true
-			} else if c.events%10 == 0 || done == totalItems {
-				logNow = true
+			x0.e++
+			emit := false
+			if n0 <= 50 {
+				emit = true
+			} else if x0.e%10 == 0 || k0 == n0 {
+				emit = true
 			}
-			if !logNow {
+			if !emit {
 				return
 			}
 
-			f := float64(done) / float64(totalItems)
-			if f < 0 {
-				f = 0
+			f0 := float64(k0) / float64(n0)
+			if f0 < 0 {
+				f0 = 0
 			}
-			if f > 1 {
-				f = 1
+			if f0 > 1 {
+				f0 = 1
 			}
-			percent := int(f*100 + 0.5)
+			pct := int(f0*100 + 0.5)
 
 			msg := fmt.Sprintf(
 				"progress user=%s page=%d done=%d/%d (%d%%) ok=%d skip=%d fail=%d bytes=%d",
-				username,
-				page,
-				done,
-				totalItems,
-				percent,
-				c.ok,
-				c.skip,
-				c.fail,
-				c.bytes,
+				u0,
+				p0,
+				k0,
+				n0,
+				pct,
+				x0.a,
+				x0.b,
+				x0.c,
+				x0.d,
 			)
 			log.LogInfo("download", msg)
 		}
@@ -191,46 +193,46 @@ func newPageProgressCallback(
 	default:
 		return nil
 	}
+
 }
 
 func scanAndDownloadUserMedia(
-	rctx RunContext,
-	conf *config.EssentialsConfig,
-	apiClient, dlClient *http.Client,
-	uid string,
-	username string,
-	runDir string,
-	lim *runtime.Limiter,
+	r0 RunContext,
+	c0 *config.EssentialsConfig,
+	h0, h1 *http.Client,
+	u0 string,
+	u1 string,
+	d0 string,
+	l0 *runtime.Limiter,
 ) (scanResult, downloadStats, error) {
-	accumulator := newScanAccumulator(256)
-	stats := downloadStats{}
+	a0 := newScanAccumulator(256)
+	s0 := downloadStats{}
 
-	vb := rctx.Mode == ModeVerbose && len(rctx.Users) == 1
+	v0 := r0.Mode == ModeVerbose && len(r0.Users) == 1
 
-	handler := func(page int, cursor string, medias []scraper.Media) error {
-		_ = cursor
+	f0 := func(p0 int, _ string, m0 []scraper.Media) error {
 		if globalControl.ShouldQuit() {
-			return fmt.Errorf("aborted by user")
+			return fmt.Errorf("Stopped by user.")
 		}
 
-		if len(medias) == 0 {
+		if len(m0) == 0 {
 			return nil
 		}
 
-		accumulator.Add(medias)
+		a0.Add(m0)
 
-		enriched := scraper.EnrichMediaWithTweetDetail(apiClient, conf, username, medias, lim, vb)
-		if len(enriched) == 0 {
+		e0 := scraper.EnrichMediaWithTweetDetail(h0, c0, u1, m0, l0, v0)
+		if len(e0) == 0 {
 			return nil
 		}
 
-		cb := newPageProgressCallback(rctx, username, page, len(enriched))
+		cb := newPageProgressCallback(r0, u1, p0, len(e0))
 
-		summary, err := downloader.DownloadAllCycles(dlClient, conf, enriched, downloader.Options{
-			RunDir:            runDir,
-			User:              username,
+		sum, err := downloader.DownloadAllCycles(h1, c0, e0, downloader.Options{
+			RunDir:            d0,
+			User:              u1,
 			MediaMaxBytes:     0,
-			DryRun:            rctx.DryRun,
+			DryRun:            r0.DryRun,
 			Attempts:          3,
 			PerAttemptTimeout: 2 * time.Minute,
 			Progress:          cb,
@@ -239,37 +241,37 @@ func scanAndDownloadUserMedia(
 		})
 		if err != nil {
 			log.LogError("download", err.Error())
-			return err
+			return fmt.Errorf("Download failed for @%s. Try again, or run with -d to generate logs.", u1)
 		}
 
-		stats.Downloaded += summary.Downloaded
-		stats.Skipped += summary.Skipped
-		stats.Failed += summary.Failed
-		stats.Bytes += summary.TotalBytes
+		s0.Downloaded += sum.Downloaded
+		s0.Skipped += sum.Skipped
+		s0.Failed += sum.Failed
+		s0.Bytes += sum.TotalBytes
 
-		if rctx.Mode == ModeDebug {
+		if r0.Mode == ModeDebug {
 			log.LogInfo("download", fmt.Sprintf(
 				"page=%d user=%s ok=%d skip=%d fail=%d bytes=%d cycles=%d",
-				page, username,
-				summary.Downloaded,
-				summary.Skipped,
-				summary.Failed,
-				summary.TotalBytes,
-				summary.Cycles,
+				p0, u1,
+				sum.Downloaded,
+				sum.Skipped,
+				sum.Failed,
+				sum.TotalBytes,
+				sum.Cycles,
 			))
 		}
 
 		if globalControl.ShouldQuit() {
-			if rctx.Mode == ModeVerbose {
+			if r0.Mode == ModeVerbose {
 				termMu.Lock()
 				fmt.Print("\n")
 				termMu.Unlock()
-				utils.PrintWarn("run aborted by user for @%s", username)
+				utils.PrintWarn("Stopped by user for @%s", u1)
 			}
-			return fmt.Errorf("aborted by user")
+			return fmt.Errorf("Stopped by user.")
 		}
 
-		if rctx.Mode == ModeVerbose && cb != nil {
+		if r0.Mode == ModeVerbose && cb != nil {
 			termMu.Lock()
 			fmt.Print("\n")
 			termMu.Unlock()
@@ -278,10 +280,10 @@ func scanAndDownloadUserMedia(
 		return nil
 	}
 
-	err := scraper.WalkUserMediaPages(apiClient, conf, uid, username, vb, lim, handler)
-	if err != nil {
-		return accumulator.Result(), stats, err
+	if err := scraper.WalkUserMediaPages(h0, c0, u0, u1, v0, l0, f0); err != nil {
+		return a0.Result(), s0, err
 	}
 
-	return accumulator.Result(), stats, nil
+	return a0.Result(), s0, nil
+
 }

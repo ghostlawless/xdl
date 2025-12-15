@@ -47,7 +47,7 @@ type tweetLegacy struct {
 type tweetResult struct {
 	RestID string      `json:"rest_id"`
 	Legacy tweetLegacy `json:"legacy"`
-	Tweet *struct {
+	Tweet  *struct {
 		RestID string      `json:"rest_id"`
 		Legacy tweetLegacy `json:"legacy"`
 	} `json:"tweet"`
@@ -303,4 +303,3 @@ func bestVideoVariantURL(vs []struct {
 	})
 	return cands[0].url
 }
-

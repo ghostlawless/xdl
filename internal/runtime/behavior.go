@@ -1,4 +1,3 @@
-// file: internal/runtime/behavior.go
 package runtime
 
 import (

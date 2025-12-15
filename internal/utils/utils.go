@@ -43,7 +43,7 @@ func PrintBanner() {
  /$$/\  $$| $$$$$$$/
 |__/  \__/|_______/ 
 
-xdl ▸ x Downloader
+xdl > x Downloader
 `
 	fmt.Fprint(os.Stdout, banner+"\n")
 }

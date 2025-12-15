@@ -3,7 +3,6 @@ package app
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
 	"time"
 )
 
@@ -16,7 +15,10 @@ const (
 func generateRunID() string {
 	var b [3]byte
 	if _, err := rand.Read(b[:]); err != nil {
-		return fmt.Sprintf("%x", time.Now().UnixNano())
+		n := uint64(time.Now().UnixNano())
+		b[0] = byte(n)
+		b[1] = byte(n >> 8)
+		b[2] = byte(n >> 16)
 	}
 	return hex.EncodeToString(b[:])
 }

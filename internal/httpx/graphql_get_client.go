@@ -18,12 +18,12 @@ type GraphQLGetClient struct {
 }
 
 type GraphQLGetOptions struct {
-	Path          string            // Example: "/i/api/graphql/<opId>/UserMedia"
-	OperationName string            // Example: "UserMedia" (kept for clarity/logging only)
-	Variables     map[string]any    // Will be JSON-encoded into "variables" query param
-	Features      map[string]any    // Will be JSON-encoded into "features" query param
-	Headers       map[string]string // Extra headers for this request
-	Timeout       time.Duration     // Per-request timeout; 0 means use client default
+	Path          string
+	OperationName string
+	Variables     map[string]any
+	Features      map[string]any
+	Headers       map[string]string
+	Timeout       time.Duration
 }
 
 type GraphQLGetResponse struct {
@@ -50,7 +50,6 @@ func (c *GraphQLGetClient) Do(ctx context.Context, opt GraphQLGetOptions) (*Grap
 		return nil, fmt.Errorf("graphql-get: empty path")
 	}
 
-	// Marshal variables and features into JSON strings (can be empty).
 	var variablesJSON, featuresJSON []byte
 	var err error
 
@@ -73,7 +72,6 @@ func (c *GraphQLGetClient) Do(ctx context.Context, opt GraphQLGetOptions) (*Grap
 		return nil, fmt.Errorf("graphql-get: build url: %w", err)
 	}
 
-	// Apply per-request timeout if provided.
 	if opt.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, opt.Timeout)
@@ -85,17 +83,14 @@ func (c *GraphQLGetClient) Do(ctx context.Context, opt GraphQLGetOptions) (*Grap
 		return nil, fmt.Errorf("graphql-get: new request: %w", err)
 	}
 
-	// Apply default headers.
 	for k, v := range c.defaultHeaders {
 		req.Header.Set(k, v)
 	}
 
-	// Per-request headers override defaults.
 	for k, v := range opt.Headers {
 		req.Header.Set(k, v)
 	}
 
-	// X behaves like an API returning JSON.
 	if req.Header.Get("Accept") == "" {
 		req.Header.Set("Accept", "application/json, */*;q=0.1")
 	}
@@ -114,7 +109,6 @@ func (c *GraphQLGetClient) Do(ctx context.Context, opt GraphQLGetOptions) (*Grap
 	var jsonBody any
 	if len(rawBody) > 0 {
 		if err := json.Unmarshal(rawBody, &jsonBody); err != nil {
-			// Parsing failure is not fatal; caller may still inspect RawBody.
 			jsonBody = nil
 		}
 	}
@@ -138,7 +132,6 @@ func (c *GraphQLGetClient) buildURLWithQuery(p string, variablesJSON, featuresJS
 		return "", fmt.Errorf("parse baseURL: %w", err)
 	}
 
-	// Cleanly join path parts.
 	u.Path = path.Join(u.Path, p)
 
 	q := u.Query()

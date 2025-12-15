@@ -1,4 +1,3 @@
-// file: internal/downloader/downloader.go (package path conforme seu projeto)
 package downloader
 
 import (

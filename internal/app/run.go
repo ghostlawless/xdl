@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -16,196 +15,130 @@ import (
 	"github.com/ghostlawless/xdl/internal/utils"
 )
 
-func runWithContext(rctx RunContext) error {
+func runWithContext(r0 RunContext) error {
 	_ = context.Background()
 
-	if rctx.Mode == ModeVerbose {
+	if r0.Mode == ModeVerbose {
 		utils.PrintBanner()
 	}
 
 	startKeyboardControlListener(globalControl)
 
-	essentialsCandidates := []string{
+	p0 := []string{
 		filepath.Join(".", "config", "essentials.json"),
 		filepath.Join(".", "essentials.json"),
 	}
 
-	conf, err := config.LoadEssentialsWithFallback(essentialsCandidates)
-	if err != nil {
-		if rctx.Mode == ModeVerbose {
-			utils.PrintError("failed to load essentials: %v", err)
-		}
-		log.LogError("config", "failed to load essentials: "+err.Error())
-		return err
+	c0, e0 := config.LoadEssentialsWithFallback(p0)
+	if e0 != nil {
+		log.LogError("config", "failed to load essentials: "+e0.Error())
+		return e0
 	}
 
-	if rctx.Mode == ModeDebug {
-		conf.Paths.Debug = rctx.LogPath
-		conf.Paths.DebugRaw = rctx.LogPath
+	if r0.Mode == ModeDebug {
+		c0.Paths.Debug = r0.LogPath
+		c0.Paths.DebugRaw = r0.LogPath
 	}
 
-	essentialsPath := ""
-	for _, p := range essentialsCandidates {
-		if _, err := os.Stat(p); err == nil {
-			essentialsPath = p
-			break
-		}
-	}
+	k0 := strings.TrimSpace(r0.CookiePath)
+	m0 := strings.TrimSpace(c0.Auth.Cookies.AuthToken) == "" || strings.TrimSpace(c0.Auth.Cookies.Ct0) == ""
 
-	// Persist cookies (optional feature).
-	if rctx.CookiePersistPath != "" {
-		if essentialsPath == "" {
-			utils.PrintError("MISSING essentials.json on disk: cannot persist cookies")
-			log.LogError("config", "cannot persist cookies: essentials.json not found on disk")
-			return fmt.Errorf("essentials.json not found on disk")
+	if k0 != "" || m0 {
+		e1 := config.ApplyCookiesFromFile(c0, k0)
+		if e1 != nil {
+			log.LogError("config", "cookie setup failed: "+e1.Error())
+			return e1
 		}
 
-		if err := config.ApplyCookiesFromFileAndPersist(conf, rctx.CookiePersistPath, essentialsPath); err != nil {
-			// Always show cookie-related errors to the user.
-			utils.PrintError("%v", err)
-			log.LogError("config", "failed to apply and persist cookies: "+err.Error())
-			return err
-		}
-
-		if rctx.Mode == ModeDebug {
-			hasGuest := conf.Auth.Cookies.GuestID != ""
-			hasAuth := conf.Auth.Cookies.AuthToken != ""
-			hasCt0 := conf.Auth.Cookies.Ct0 != ""
-			log.LogInfo("config", fmt.Sprintf("cookies persisted: guest_id=%v auth_token=%v ct0=%v into %s", hasGuest, hasAuth, hasCt0, essentialsPath))
-		} else if rctx.Mode == ModeVerbose {
-			utils.PrintSuccess("cookies imported and persisted into %s", essentialsPath)
-		}
-
-		if len(rctx.Users) == 0 {
-			return nil
+		if r0.Mode == ModeDebug {
+			g0 := c0.Auth.Cookies.GuestID != ""
+			g1 := c0.Auth.Cookies.AuthToken != ""
+			g2 := c0.Auth.Cookies.Ct0 != ""
+			log.LogInfo("config", fmt.Sprintf("cookies loaded: guest_id=%v auth_token=%v ct0=%v", g0, g1, g2))
 		}
 	}
 
-	// Auto-detect default cookies.json.
-	defaultCookiePath := filepath.Join("config", "cookies.json")
-	if rctx.CookiePath == "" {
-		if _, err := os.Stat(defaultCookiePath); err == nil {
-			rctx.CookiePath = defaultCookiePath
-		}
+	e2 := c0.ValidateRequiredCookies(k0)
+	if e2 != nil {
+		log.LogError("config", "missing auth cookies: "+e2.Error())
+		return e2
 	}
 
-	// Load cookies from file (if provided/detected).
-	if rctx.CookiePath != "" {
-		if err := config.ApplyCookiesFromFile(conf, rctx.CookiePath); err != nil {
-			// Always show cookie-related errors to the user.
-			utils.PrintError("%v", err)
-			log.LogError("config", "failed to apply cookies: "+err.Error())
-			return err
-		}
+	t0 := c0.HTTPTimeout()
+	h0 := buildAPIClient(t0)
+	h1 := buildDownloadClient()
 
-		if rctx.Mode == ModeDebug {
-			hasGuest := conf.Auth.Cookies.GuestID != ""
-			hasAuth := conf.Auth.Cookies.AuthToken != ""
-			hasCt0 := conf.Auth.Cookies.Ct0 != ""
-			log.LogInfo("config", fmt.Sprintf("cookies loaded: guest_id=%v auth_token=%v ct0=%v", hasGuest, hasAuth, hasCt0))
-		}
+	if len(r0.Users) == 1 {
+		return runSingleUser(r0, c0, h0, h1, r0.Users[0])
 	}
 
-	// HARD REQUIREMENT: fail fast if cookies are missing.
-	cookieHintPath := rctx.CookiePath
-	if cookieHintPath == "" {
-		cookieHintPath = defaultCookiePath
+	n0 := len(r0.Users)
+	if n0 > 4 {
+		n0 = 4
 	}
 
-	missing := make([]string, 0, 2)
-	if strings.TrimSpace(conf.Auth.Cookies.AuthToken) == "" {
-		missing = append(missing, "auth_token")
-	}
-	if strings.TrimSpace(conf.Auth.Cookies.Ct0) == "" {
-		missing = append(missing, "ct0")
-	}
-	if len(missing) > 0 {
-		e := fmt.Errorf(
-			"MISSING COOKIES: %s.\nFix: login to x.com, export cookies as JSON (Cookie-Editor), save to %q, then run again.",
-			strings.Join(missing, ", "),
-			cookieHintPath,
-		)
-		utils.PrintError("%v", e)
-		log.LogError("config", e.Error())
-		return e
-	}
+	q0 := make(chan error, len(r0.Users))
+	s1 := make(chan struct{}, n0)
 
-	apiTimeout := conf.HTTPTimeout()
-	apiClient := buildAPIClient(apiTimeout)
-	dlClient := buildDownloadClient()
-
-	if len(rctx.Users) == 1 {
-		return runSingleUser(rctx, conf, apiClient, dlClient, rctx.Users[0])
-	}
-
-	cc := len(rctx.Users)
-	if cc > 4 {
-		cc = 4
-	}
-
-	errCh := make(chan error, len(rctx.Users))
-	sem := make(chan struct{}, cc)
-
-	var wg sync.WaitGroup
-	for _, user := range rctx.Users {
-		u := user
-		wg.Add(1)
+	var w0 sync.WaitGroup
+	for _, u0 := range r0.Users {
+		u1 := u0
+		w0.Add(1)
 		go func() {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
+			defer w0.Done()
+			s1 <- struct{}{}
+			defer func() { <-s1 }()
 
-			if err := runSingleUser(rctx, conf, apiClient, dlClient, u); err != nil {
-				errCh <- err
+			if e3 := runSingleUser(r0, c0, h0, h1, u1); e3 != nil {
+				q0 <- fmt.Errorf("@%s: %w", u1, e3)
 			}
 		}()
 	}
 
-	wg.Wait()
-	close(errCh)
+	w0.Wait()
+	close(q0)
 
-	for e := range errCh {
-		if e != nil {
-			return e
+	for e4 := range q0 {
+		if e4 != nil {
+			return e4
 		}
 	}
 
 	return nil
 
 }
+func runSingleUser(r0 RunContext, c0 *config.EssentialsConfig, h0, h1 *http.Client, u0 string) error {
+	t0 := time.Now()
+	l0 := runtime.NewLimiterWith(r0.RunSeed, []byte(strings.TrimSpace(c0.Runtime.LimiterSecret)))
 
-func runSingleUser(rctx RunContext, conf *config.EssentialsConfig, apiClient, dlClient *http.Client, username string) error {
-	start := time.Now()
-	lim := runtime.NewLimiterWith(rctx.RunSeed, []byte(strings.TrimSpace(conf.Runtime.LimiterSecret)))
-
-	if rctx.Mode == ModeDebug {
-		log.LogInfo("main", fmt.Sprintf("xdl start | run_id=%s | target=%s", rctx.RunID, username))
+	if r0.Mode == ModeDebug {
+		log.LogInfo("main", fmt.Sprintf("xdl start | run_id=%s | target=%s", r0.RunID, u0))
 	}
-	if rctx.Mode == ModeVerbose {
-		utils.PrintInfo("loading profile target [@%s]...", username)
-	}
-
-	spin := newSpinnerForUser(rctx, username)
-	if spin != nil {
-		defer stopSpinner(spin)
+	if r0.Mode == ModeVerbose {
+		utils.PrintInfo("Loading target profile: @%s", u0)
 	}
 
-	runDir, err := prepareRunOutputDir(rctx, conf, username, spin)
-	if err != nil {
-		return err
+	s0 := newSpinnerForUser(r0, u0)
+	if s0 != nil {
+		defer stopSpinner(s0)
 	}
 
-	uid, err := resolveUserID(rctx, conf, apiClient, username, spin)
-	if err != nil {
-		return err
+	d0, e0 := prepareRunOutputDir(r0, c0, u0, s0)
+	if e0 != nil {
+		return e0
 	}
 
-	scan, stats, err := scanAndDownloadUserMedia(rctx, conf, apiClient, dlClient, uid, username, runDir, lim)
-	if err != nil {
-		return err
+	i0, e1 := resolveUserID(r0, c0, h0, u0, s0)
+	if e1 != nil {
+		return e1
 	}
 
-	printRunSummary(rctx, username, start, scan, stats)
+	a0, b0, e2 := scanAndDownloadUserMedia(r0, c0, h0, h1, i0, u0, d0, l0)
+	if e2 != nil {
+		return e2
+	}
 
+	printRunSummary(r0, u0, t0, a0, b0)
 	return nil
+
 }

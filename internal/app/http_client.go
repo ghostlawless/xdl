@@ -6,8 +6,8 @@ import (
 	"time"
 )
 
-func buildAPIClient(t time.Duration) *http.Client {
-	tr := &http.Transport{
+func buildAPIClient(x0 time.Duration) *http.Client {
+	a0 := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          100,
@@ -21,14 +21,17 @@ func buildAPIClient(t time.Duration) *http.Client {
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
 	}
-	if t <= 0 {
-		t = 15 * time.Second
+
+	if x0 <= 0 {
+		x0 = 15 * time.Second
 	}
-	return &http.Client{Transport: tr, Timeout: t}
+
+	return &http.Client{Transport: a0, Timeout: x0}
+
 }
 
 func buildDownloadClient() *http.Client {
-	tr := &http.Transport{
+	a0 := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          200,
@@ -42,5 +45,7 @@ func buildDownloadClient() *http.Client {
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
 	}
-	return &http.Client{Transport: tr, Timeout: 0}
+
+	return &http.Client{Transport: a0, Timeout: 0}
+
 }

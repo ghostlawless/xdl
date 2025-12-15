@@ -23,11 +23,13 @@ func spin() pack {
 			Buf: []byte("fallback-run-seed"),
 		}
 	}
+
 	r := hex.EncodeToString(x[:3])
 	return pack{
 		Ref: r,
 		Buf: x[:],
 	}
+
 }
 
 func main() {
@@ -49,4 +51,5 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+
 }

@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,9 @@ import (
 
 	"github.com/ghostlawless/xdl/internal/httpx"
 )
+
+//go:embed defaults/essentials.json
+var embeddedEssentialsJSON []byte
 
 type GraphQLOperation struct {
 	ID   string `json:"id"`
@@ -69,22 +73,35 @@ type EssentialsConfig struct {
 }
 
 func LoadEssentialsWithFallback(paths []string) (*EssentialsConfig, error) {
-	var lastErr error
 	for _, path := range paths {
 		if strings.TrimSpace(path) == "" {
 			continue
 		}
+
 		cfg, err := loadEssentialsFromPath(path)
 		if err != nil {
-			lastErr = err
-			continue
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+
+			return nil, fmt.Errorf("failed to load essentials.json from %s: %w", path, err)
 		}
+
 		return cfg, nil
 	}
-	if lastErr != nil {
-		return nil, lastErr
+
+	if len(embeddedEssentialsJSON) == 0 {
+		return nil, fmt.Errorf("no essentials.json found and embedded essentials is empty")
 	}
-	return nil, fmt.Errorf("no essentials.json found")
+
+	var cfg EssentialsConfig
+	if err := json.Unmarshal(embeddedEssentialsJSON, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse embedded essentials.json: %w", err)
+	}
+
+	cfg.X.Network = normalizeNetwork(cfg.X.Network)
+	return &cfg, nil
+
 }
 
 func loadEssentialsFromPath(path string) (*EssentialsConfig, error) {
@@ -266,11 +283,109 @@ type BrowserCookie struct {
 
 var ErrCookieFileMissing = errors.New("cookie file missing")
 
+func executableDir() string {
+	p, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if rp, err := filepath.EvalSymlinks(p); err == nil && strings.TrimSpace(rp) != "" {
+		p = rp
+	}
+	d := filepath.Dir(p)
+	if strings.TrimSpace(d) == "" || d == "." {
+		return ""
+	}
+	return d
+}
+
+func preferredCookiePathFor(name string) string {
+	d := executableDir()
+	if d == "" {
+		return name
+	}
+	return filepath.Join(d, name)
+}
+
+func preferredCookiePath() string {
+	return preferredCookiePathFor("cookies.txt")
+}
+
+func uniquePaths(in []string) []string {
+	out := make([]string, 0, len(in))
+	seen := make(map[string]struct{}, len(in))
+	for _, p := range in {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if _, ok := seen[p]; ok {
+			continue
+		}
+		seen[p] = struct{}{}
+		out = append(out, p)
+	}
+	return out
+}
+
+func cookiePathCandidates(input string) []string {
+	p := strings.TrimSpace(input)
+	d := executableDir()
+
+	addVariants := func(x string) []string {
+		x = strings.TrimSpace(x)
+		if x == "" {
+			return nil
+		}
+
+		ext := strings.ToLower(filepath.Ext(x))
+		if ext == "" {
+			return []string{x, x + ".txt", x + ".json"}
+		}
+
+		base := strings.TrimSuffix(x, ext)
+		if ext == ".json" {
+			return []string{x, base + ".txt"}
+		}
+		if ext == ".txt" {
+			return []string{x, base + ".json"}
+		}
+
+		return []string{x}
+	}
+
+	if p != "" {
+		raw := make([]string, 0, 6)
+		for _, v := range addVariants(p) {
+			raw = append(raw, v)
+			if d != "" && !filepath.IsAbs(v) {
+				raw = append(raw, filepath.Join(d, v))
+			}
+		}
+		return uniquePaths(raw)
+	}
+
+	raw := make([]string, 0, 10)
+	if d != "" {
+		raw = append(raw, filepath.Join(d, "cookies.txt"))
+		raw = append(raw, filepath.Join(d, "cookies.json"))
+	}
+	raw = append(raw, "cookies.txt")
+	raw = append(raw, "cookies.json")
+	if d != "" {
+		raw = append(raw, filepath.Join(d, "config", "cookies.txt"))
+		raw = append(raw, filepath.Join(d, "config", "cookies.json"))
+	}
+	raw = append(raw, filepath.Join("config", "cookies.txt"))
+	raw = append(raw, filepath.Join("config", "cookies.json"))
+	return uniquePaths(raw)
+
+}
+
 func (c *EssentialsConfig) ValidateRequiredCookies(cookiePath string) error {
 	if c == nil {
 		return fmt.Errorf("nil config")
-
 	}
+
 	missing := make([]string, 0, 2)
 	if strings.TrimSpace(c.Auth.Cookies.AuthToken) == "" {
 		missing = append(missing, "auth_token")
@@ -285,15 +400,28 @@ func (c *EssentialsConfig) ValidateRequiredCookies(cookiePath string) error {
 
 	p := strings.TrimSpace(cookiePath)
 	if p == "" {
-		p = "config/cookies.json"
+		p = preferredCookiePathFor("cookies.txt")
 	}
 
+	alt := preferredCookiePathFor("cookies.json")
+
 	return fmt.Errorf(
-		"%w: MISSING COOKIES: %s. Cookies are REQUIRED to use X endpoints.\nFix: login to x.com in your browser, export cookies as JSON (Cookie-Editor), save to %q, then run again.",
+		"%w\n\nAuthentication required.\n\n"+
+			"Missing cookies: %s\n\n"+
+			"Why this is needed:\n"+
+			"X blocks most media access unless the session is logged in.\n\n"+
+			"How to fix:\n"+
+			"1) Log in to https://x.com in your browser\n"+
+			"2) Export cookies as JSON (using Cookie-Editor or similar)\n"+
+			"3) Save the file as:\n  %s\n  or %s\n"+
+			"4) Run xdl again\n\n"+
+			"This is required only once per account (until cookies expire).",
 		ErrCookieFileMissing,
 		strings.Join(missing, ", "),
 		p,
+		alt,
 	)
+
 }
 
 func ApplyCookiesFromFile(cfg *EssentialsConfig, path string) error {
@@ -301,31 +429,42 @@ func ApplyCookiesFromFile(cfg *EssentialsConfig, path string) error {
 		return fmt.Errorf("nil config")
 	}
 
-	path = strings.TrimSpace(path)
-	if path == "" {
-		path = "config/cookies.json"
-	}
+	candidates := cookiePathCandidates(path)
 
-	cookies, err := loadBrowserCookies(path)
-	if err != nil {
-		if errors.Is(err, ErrCookieFileMissing) {
-			return fmt.Errorf(
-				"%w: MISSING COOKIES: cookie file not found or empty at %q.\nFix: login to x.com, export cookies as JSON (Cookie-Editor), save to %q, then run again.",
-				ErrCookieFileMissing,
-				path,
-				path,
-			)
+	for _, candidate := range candidates {
+		cookies, err := loadBrowserCookies(candidate)
+		if err != nil {
+			if errors.Is(err, ErrCookieFileMissing) {
+				continue
+			}
+			return err
 		}
-		return err
+
+		cfg.applyBrowserCookies(cookies)
+
+		if err := cfg.ValidateRequiredCookies(candidate); err != nil {
+			return err
+		}
+
+		return nil
 	}
 
-	cfg.applyBrowserCookies(cookies)
+	expectedTxt := preferredCookiePathFor("cookies.txt")
+	expectedJSON := preferredCookiePathFor("cookies.json")
 
-	if err := cfg.ValidateRequiredCookies(path); err != nil {
-		return err
-	}
+	return fmt.Errorf(
+		"%w\n\nCookie file not found.\n\n"+
+			"Expected location:\n  %s\n  or %s\n\n"+
+			"How to fix:\n"+
+			"1) Log in to https://x.com in your browser\n"+
+			"2) Export cookies as JSON (Cookie-Editor or similar)\n"+
+			"3) Save the file as cookies.txt (or cookies.json) in the expected location\n"+
+			"4) Run xdl again",
+		ErrCookieFileMissing,
+		expectedTxt,
+		expectedJSON,
+	)
 
-	return err
 }
 
 func loadBrowserCookies(path string) ([]BrowserCookie, error) {
@@ -344,7 +483,11 @@ func loadBrowserCookies(path string) ([]BrowserCookie, error) {
 
 	var cookies []BrowserCookie
 	if err := json.Unmarshal(data, &cookies); err != nil {
-		return nil, fmt.Errorf("failed to parse cookie file %q: %w", path, err)
+		return nil, fmt.Errorf(
+			"failed to parse cookie file %q: invalid JSON format: %w",
+			path,
+			err,
+		)
 	}
 
 	if len(cookies) == 0 {
@@ -352,6 +495,7 @@ func loadBrowserCookies(path string) ([]BrowserCookie, error) {
 	}
 
 	return cookies, err
+
 }
 
 func (c *EssentialsConfig) applyBrowserCookies(cookies []BrowserCookie) {
@@ -389,7 +533,7 @@ func SaveEssentials(cfg *EssentialsConfig, path string) error {
 	if err := ensureEssentialsDir(path); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(cfg, "", "  ")
+	data, err := json.MarshalIndent(cfg, "", " ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal essentials: %w", err)
 	}
